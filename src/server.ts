@@ -1,8 +1,10 @@
 // import express from 'express';
-import express, { Router, Request, Response, response, NextFunction } from 'express';
+import express, { Request, Response } from 'express';
 
 import bodyParser from 'body-parser';
 import {filterImageFromURL, deleteLocalFiles} from './util/util';
+import * as fs from 'fs';
+import {default as axios } from 'axios';
 
 (async () => {
 
@@ -32,21 +34,31 @@ import {filterImageFromURL, deleteLocalFiles} from './util/util';
   /**************************************************************************** */
 
   //! END @TODO1
-  const validUrl = require('valid-url');
-  const fs = require('fs');
 
   const handler = async function ( req: Request, res: Response) {
     let { image_url } = req.query;
-    if ( !validUrl.isUri(image_url) ) {
+    const istrusted = await urlTrust(image_url);
+    if (istrusted) {
+      let filteredpath = await filterImageFromURL(image_url);
+      res.on('close',cleaner)
+      res.status(200)
+        .sendFile(filteredpath);
+    } else {
       return res.status(400)
                 .send(`Please provide a valid url`);
     }
-    let filteredpath = await filterImageFromURL(image_url);
-    res.on('close',cleaner)
-    res.status(200)
-       .sendFile(filteredpath);   
   };
-
+  
+  async function urlTrust(image_url: string) {
+    return await axios.head(image_url)
+                      .then((res : any) => {
+                        return res.status == 200
+                      })
+                      .catch((e:any) => {
+                        return false
+                      });
+  }
+  
   const cleaner =  function ()  {
     const folder = __dirname + "/util/tmp/";
     let filesToclean = new Array();
